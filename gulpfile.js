@@ -1,70 +1,63 @@
 const { src, dest, watch, series, parallel } = require('gulp');
 const sass = require('gulp-sass')(require('sass'));
 const cssnano = require('gulp-cssnano');
+const imagemin = require('gulp-imagemin');
 const rename = require('gulp-rename');
 const uglify = require('gulp-uglify');
+const concat = require('gulp-concat');
 const browserSync = require('browser-sync').create();
 
-// Завдання для HTML
-function htmlTask() {
-  return src('app/**/*.html')  // Змінив на всі HTML файли в app та підпапках
-    .pipe(dest('dist'))
-    .pipe(browserSync.stream());
-}
 
-// Завдання для SCSS
-function scssTask() {
-  return src('app/scss/**/*.scss')  // Змінив на всі SCSS файли
-    .pipe(sass().on('error', sass.logError))
-    .pipe(dest('dist/css'))
-    .pipe(cssnano())
-    .pipe(rename({ suffix: '.min' }))
-    .pipe(dest('dist/css'))
-    .pipe(browserSync.stream());
-}
+// --- HTML таска  ---
+const html_task = () => {
+  return src('app/*.html')
+      .pipe(dest('dist'))
+      .pipe(browserSync.stream());
+};
 
-// Завдання для JavaScript
-function jsTask() {
-  return src('app/js/**/*.js')  // Змінив на всі JS файли
-    .pipe(dest('dist/js'))
-    .pipe(uglify())
-    .pipe(rename({ suffix: '.min' }))
-    .pipe(dest('dist/js'))
-    .pipe(browserSync.stream());
-}
+// --- SCSS таска ---
+const scss_task = () => {
+  return src('app/scss/style.scss')
+      .pipe(sass().on('error', sass.logError))
+      .pipe(concat('style.min.css'))
+      .pipe(cssnano())
+      .pipe(dest('dist/css'))
+      .pipe(browserSync.stream());
+};
 
-// Просте копіювання зображень
-function imagesTask() {
-  return src('app/img/**/*')
-    .pipe(dest('dist/img'))  // Змінив на img замість imgs для консистентності
-    .pipe(browserSync.stream());
-}
+// --- JS таска (усі JS з компонентів) ---
+const js_task = () => {
+  return src('app/js/**/*.js')
+      .pipe(concat('script.min.js'))
+      .pipe(uglify())
+      .pipe(dest('dist/js'))
+      .pipe(browserSync.stream());
+};
 
-// BrowserSync з явним вказівкам файлу
-function browserSyncServe(cb) {
+// --- Images таска ---
+const img_task = () => {
+  return src('app/img/**/*.{webp,png,jpg,jpeg,svg}', { encoding: false })
+      .pipe(imagemin())
+      .pipe(dest('dist/img'))
+      .pipe(browserSync.stream());
+};
+
+// --- BrowserSync та Watch ---
+const serve = () => {
   browserSync.init({
     server: {
-      baseDir: './dist',
-      index: 'index.html'  // Явно вказуємо головний файл
-    },
-    notify: false
+      baseDir: 'dist'
+    }
   });
-  cb();
-}
 
-// Watch
-function watchTask() {
-  watch('app/**/*.html', htmlTask);
-  watch('app/scss/**/*.scss', scssTask);
-  watch('app/js/**/*.js', jsTask);
-  watch('app/img/**/*', imagesTask);
-}
+  watch('app/**/*.html', html_task);
+  watch('app/**/*.scss', scss_task);
+  watch('app/js/**/*.js', js_task);
+  watch('app/img/**/*', img_task);
+};
 
-// Спочатку будуємо проект, потім запускаємо сервер
-exports.build = parallel(htmlTask, scssTask, jsTask, imagesTask);
-
+// --- Default таска ---
 exports.default = series(
-  parallel(htmlTask, scssTask, jsTask, imagesTask), // Спочатку обробляємо всі файли
-  browserSyncServe, // Потім запускаємо сервер
-  watchTask // І починаємо стежити за змінами
+    parallel(html_task, scss_task, js_task, img_task),
+    serve
 );
